@@ -1,0 +1,35 @@
+# create_owner_emb_from_tflite.py
+import tensorflow as tf
+import numpy as np
+import os, cv2
+
+MODEL_PATH = "facenet_cosine_base.tflite"
+DATA_DIR = "data_aligned/chu_nha"
+SAVE_PATH = "owner_embedding.npy"
+IMG_SIZE = (112, 112)
+
+interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+interpreter.allocate_tensors()
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+embeddings = []
+
+for fname in os.listdir(DATA_DIR):
+    if not fname.lower().endswith(('.jpg', '.png')):
+        continue
+    img = cv2.imread(os.path.join(DATA_DIR, fname))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = cv2.resize(img, IMG_SIZE).astype('float32') / 255.0
+    img = np.expand_dims(img, axis=0)
+
+    interpreter.set_tensor(input_details[0]['index'], img)
+    interpreter.invoke()
+    emb = interpreter.get_tensor(output_details[0]['index'])[0]
+    emb = emb / np.linalg.norm(emb)
+    embeddings.append(emb)
+
+owner_emb = np.mean(embeddings, axis=0)
+owner_emb = owner_emb / np.linalg.norm(owner_emb)
+np.save(SAVE_PATH, owner_emb)
+print(f" Saved embedding to {SAVE_PATH}")
